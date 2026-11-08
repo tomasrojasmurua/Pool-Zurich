@@ -217,7 +217,7 @@
     txt('POOL ZURICH', 180, 72, '#ffe9a8', 'center', 16);
     if (screen === 'menu') {
       button('< ' + gameName(gameType) + ' >', 76, 280, () => { gameType = GAMES[(GAMES.indexOf(gameType) + 1) % GAMES.length]; });
-      txt(gameType === 8 ? 'LISAS CONTRA RAYADAS' : gameType === 'orden' ? 'BOLAS EN LOS DIAMANTES, EN ORDEN' : 'TOCA SIEMPRE LA MAS BAJA', 180, 342, '#ffe9a8', 'center');
+      txt(gameType === 8 ? 'LISAS CONTRA RAYADAS' : gameType === 'orden' ? 'SUMA PUNTOS, GANA QUIEN LLEGA A 61' : 'TOCA SIEMPRE LA MAS BAJA', 180, 342, '#ffe9a8', 'center');
       button('2 JUGADORES', 76, 356, () => { mode = 'local'; startGame((Math.random() * 1e9) | 0, 0, 2); });
       button('4 JUGADORES', 76, 422, () => { mode = 'local'; startGame((Math.random() * 1e9) | 0, 0, 4); });
       button('CREAR SALA', 76, 488, hostOnline);
@@ -248,7 +248,7 @@
     if (IMG.mesa) ctx.drawImage(IMG.mesa, TX, TY);
 
     // Triángulo antes del saque
-    if (st.game === 8 && st.isBreak && phase === 'aim' && IMG.tri) {
+    if ((st.game === 8 || st.game === 'orden') && st.isBreak && phase === 'aim' && IMG.tri) {
       ctx.save(); ctx.translate(TX + 144, TY + Table.FOOT.y - 17); ctx.scale(1, -1);
       ctx.drawImage(IMG.tri, -33, -28); ctx.restore();
     }

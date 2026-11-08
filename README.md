@@ -20,7 +20,7 @@ Se elige en el menú tocando el botón de juego (`< BOLA 8 >`).
 - **Bola 8:** lisas contra rayadas. Gana quien mete la 8 después de terminar su grupo.
 - **Bola 9:** bolas 1 a 9 en rombo. Siempre hay que tocar primero la bola más baja de la mesa. Gana quien mete la 9 en un tiro válido, aunque sea de rebote o combinación.
 - **Bola 10:** igual que la bola 9, pero con 10 bolas en triángulo. Gana quien mete la 10.
-- **Pool 61:** las bolas 1 a 14 parten sobre los diamantes de las bandas y la 15 al centro. Hay que tocar primero la más baja y solo cuentan las bolas que entran en orden (las demás vuelven a su diamante). Cada bola vale su número en puntos; gana quien llega a 61.
+- **Pool 61** (rotación o Chicago): 15 bolas en triángulo, con la 1 en el vértice, la 2 y la 3 en las esquinas de atrás y la 15 al centro. Hay que tocar primero la bola más baja y todas las bolas que entran en un tiro válido suman su número en puntos. Si hay falta, pasa el turno, el rival juega con bola en mano detrás de la línea de salida y las bolas metidas vuelven a la mesa. Gana el primero (o la pareja) que llega a 61 de los 120 puntos.
 
 ## Modos
 
