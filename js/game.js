@@ -59,8 +59,9 @@
   const cue = () => Rules.ball(st, 0);
 
   let gameType = 8;           // juego elegido en el menú: 8, 9 o 10
-  const GAMES = [8, 9, 10, 'orden'];
-  const gameName = g => g === 'orden' ? 'POOL 61' : 'BOLA ' + g;
+  const GAMES = [8, 9, 10, 'orden', 'casa'];
+  const is61 = g => g === 'orden' || g === 'casa';
+  const gameName = g => g === 'orden' ? 'POOL 61' : g === 'casa' ? '61 CASA' : 'BOLA ' + g;
   function startGame(seed, first, np, game) {
     st = Rules.newGame(seed, first, np, game || gameType);
     phase = 'aim'; shot = null; pendingSync = null; pull = 0; aim = { x: 0, y: -1 }; remoteAim = null;
@@ -105,17 +106,17 @@
 
   // Marcador de bolas metidas: aparece cuando entra una bola (o al tocar la tiza)
   let boardT = 0, boardNew = [], seenPotted = 0, prevPotted = [];
-  const pottedCount = () => st && st.potted ? st.potted[0].length + st.potted[1].length : 0;
+  const allPotted = () => st && st.potted ? [].concat(...st.potted) : [];
+  const pottedCount = () => allPotted().length;
 
   function afterResolve() {
     if (st.msg) { toast = st.msg; toastT = 150; }
     const n = pottedCount();
     if (n > seenPotted) {
-      const all = st.potted[0].concat(st.potted[1]);
-      boardNew = all.filter(b => !prevPotted.includes(b));
+      boardNew = allPotted().filter(b => !prevPotted.includes(b));
       boardT = 240;
     }
-    seenPotted = n; prevPotted = st.potted ? st.potted[0].concat(st.potted[1]) : [];
+    seenPotted = n; prevPotted = allPotted();
     if (st.winner === null) aim = defaultAim();
   }
 
@@ -155,7 +156,7 @@
   // El anfitrión empieza la partida (con 2 o 4 jugadores conectados)
   function startOnline() {
     const np = Net.count();
-    if (np !== 2 && np !== 4) return;
+    if (np < 2 || (np === 3 && gameType === 8)) return;
     const seed = (Math.random() * 1e9) | 0;
     Net.sendEach(i => ({ t: 'start', seed, first: 0, np, me: i + 1, game: gameType }));
     me = 0;
@@ -199,11 +200,11 @@
   }
 
   let buttons = [], pressed = null;
-  function button(label, x, y, cb, disabled) {
+  function button(label, x, y, cb, disabled, h = 60) {
     const img = disabled ? IMG.btnD : (pressed && pressed.label === label ? IMG.btnP : IMG.btn);
-    if (img) ctx.drawImage(img, x, y, 208, 60);
-    txt(label, x + 104, y + 22, disabled ? '#999' : '#fff', 'center', 16);
-    if (!disabled) buttons.push({ label, x, y, w: 208, h: 60, cb });
+    if (img) ctx.drawImage(img, x, y, 208, h);
+    txt(label, x + 104, y + (h - 16) / 2, disabled ? '#999' : '#fff', 'center', 16);
+    if (!disabled) buttons.push({ label, x, y, w: 208, h, cb });
   }
 
   function drawBall(n, x, y, alpha = 1) {
@@ -211,6 +212,22 @@
     ctx.globalAlpha = alpha;
     ctx.drawImage(IMG.bolas, n * 10, 0, 10, 10, Math.round(x - 5), Math.round(y - 5), 10, 10);
     ctx.globalAlpha = 1;
+  }
+
+  // Bola grande para las repisas, con el número bien legible
+  const BALL_COL = ['#fff', '#f2c21b', '#1d4fc4', '#d8261f', '#5b2a8c', '#f07a12', '#1f8a3a', '#7a1f14', '#111'];
+  function drawBigBall(n, x, y) {
+    const col = BALL_COL[n > 8 ? n - 8 : n];
+    ctx.imageSmoothingEnabled = true;
+    ctx.fillStyle = '#000'; ctx.beginPath(); ctx.arc(x, y + 1, 10, 0, 7); ctx.fill();
+    ctx.fillStyle = n > 8 ? '#f4efe2' : col; ctx.beginPath(); ctx.arc(x, y, 10, 0, 7); ctx.fill();
+    if (n > 8) { ctx.save(); ctx.beginPath(); ctx.arc(x, y, 10, 0, 7); ctx.clip(); ctx.fillStyle = col; ctx.fillRect(x - 10, y - 6, 20, 12); ctx.restore(); }
+    ctx.fillStyle = 'rgba(255,255,255,0.45)'; ctx.beginPath(); ctx.arc(x - 4, y - 5, 2.5, 0, 7); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(x, y, 6.5, 0, 7); ctx.fill();
+    ctx.fillStyle = '#000'; ctx.font = 'bold ' + (n > 9 ? 9 : 10) + 'px Arial, sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(String(n), x, y + 0.5);
+    ctx.imageSmoothingEnabled = false;
   }
 
   function draw() {
@@ -230,12 +247,11 @@
     txt('POOL ZURICH', 180, 72, '#ffe9a8', 'center', 16);
     if (screen === 'menu') {
       button('< ' + gameName(gameType) + ' >', 76, 280, () => { gameType = GAMES[(GAMES.indexOf(gameType) + 1) % GAMES.length]; });
-      txt(gameType === 8 ? 'LISAS CONTRA RAYADAS' : gameType === 'orden' ? 'SUMA PUNTOS, GANA QUIEN LLEGA A 61' : 'TOCA SIEMPRE LA MAS BAJA', 180, 342, '#ffe9a8', 'center');
-      button('2 JUGADORES', 76, 356, () => { mode = 'local'; startGame((Math.random() * 1e9) | 0, 0, 2); });
-      button('4 JUGADORES', 76, 422, () => { mode = 'local'; startGame((Math.random() * 1e9) | 0, 0, 4); });
-      button('CREAR SALA', 76, 488, hostOnline);
-      button('UNIRSE', 76, 554, joinOnline);
-      txt('4 JUGADORES = 2 CONTRA 2', 180, 622, '#ccc', 'center');
+      txt(gameType === 8 ? 'LISAS CONTRA RAYADAS' : gameType === 'orden' ? 'SUMA PUNTOS, GANA QUIEN LLEGA A 61' : gameType === 'casa' ? 'POOL 61, BOLAS EN LOS DIAMANTES' : 'TOCA SIEMPRE LA MAS BAJA', 180, 342, '#ffe9a8', 'center');
+      [2, 3, 4].forEach((n, k) => button(n + ' JUGADORES', 76, 358 + k * 48, () => { mode = 'local'; startGame((Math.random() * 1e9) | 0, 0, n); }, n === 3 && gameType === 8, 44));
+      button('CREAR SALA', 76, 506, hostOnline, false, 44);
+      button('UNIRSE', 76, 554, joinOnline, false, 44);
+      txt(gameType === 8 ? '4 JUGADORES = 2 CONTRA 2' : '3 = CADA UNO SOLO, 4 = 2 VS 2', 180, 612, '#ccc', 'center');
       txt('V' + VERSION, 356, 4, '#aaa', 'right');
     } else {
       ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(0, 0, W, H);
@@ -247,8 +263,9 @@
       if (me === 0 && lobby.code) {
         const n = lobby.players;
         txt('JUGADORES: ' + n + '/4', 180, py + 142, '#fff', 'center');
-        txt(n === 3 ? 'FALTA 1 PARA EL 2 VS 2' : n === 1 ? 'ESPERANDO JUGADORES...' : 'LISTOS PARA JUGAR', 180, py + 158, '#cfe', 'center');
-        button('EMPEZAR', 76, 400, startOnline, n !== 2 && n !== 4);
+        const ok3 = gameType !== 8;
+        txt(n === 3 && !ok3 ? 'FALTA 1 PARA EL 2 VS 2' : n === 1 ? 'ESPERANDO JUGADORES...' : 'LISTOS PARA JUGAR', 180, py + 158, '#cfe', 'center');
+        button('EMPEZAR', 76, 400, startOnline, n < 2 || (n === 3 && !ok3));
       } else if (me !== 0 && lobby.text === 'CONECTADO') {
         txt('ESPERANDO AL ANFITRION', 180, py + 142, '#cfe', 'center');
       }
@@ -284,6 +301,7 @@
       for (let d = 7; d < hit.t; d += 4) ctx.fillRect(Math.round(TX + c.x + a.x * d), Math.round(TY + c.y + a.y * d), 1, 1);
       ctx.strokeStyle = 'rgba(255,255,255,0.8)';
       ctx.beginPath(); ctx.arc(Math.round(TX + hit.x) + 0.5, Math.round(TY + hit.y) + 0.5, 4.5, 0, Math.PI * 2); ctx.stroke();
+      if (!hit.ball) drawBank(hit, a);
       if (hit.ball) {
         const nx = hit.ball.x - hit.x, ny = hit.ball.y - hit.y, nd = Math.hypot(nx, ny) || 1;
         ctx.fillStyle = 'rgba(255,240,120,0.9)';
@@ -300,10 +318,38 @@
     drawHud();
   }
 
+  // Rebote en la banda: muestra hacia dónde seguiría la blanca después de pegar en la orilla
+  function drawBank(hit, a) {
+    const R = Table.R;
+    for (const p of Table.pockets) if (Math.hypot(hit.x - p.x, hit.y - p.y) < p.r + R + 2) return;   // va a la tronera
+    let dx = a.x, dy = a.y;
+    if (Math.abs(hit.x - (Table.L + R)) < 0.5 || Math.abs(hit.x - (Table.Rt - R)) < 0.5) dx = -dx;
+    if (Math.abs(hit.y - (Table.T + R)) < 0.5 || Math.abs(hit.y - (Table.B - R)) < 0.5) dy = -dy;
+    const from = { x: hit.x, y: hit.y };
+    const h2 = Physics.castRay(st.balls, from, dx, dy);
+    const len = Math.min(h2.t, 160);
+    ctx.fillStyle = 'rgba(120,255,220,0.75)';
+    for (let d = 4; d < len; d += 4) ctx.fillRect(Math.round(TX + from.x + dx * d), Math.round(TY + from.y + dy * d), 1, 1);
+    if (h2.t <= 160) {
+      ctx.strokeStyle = 'rgba(120,255,220,0.75)';
+      ctx.beginPath(); ctx.arc(Math.round(TX + h2.x) + 0.5, Math.round(TY + h2.y) + 0.5, 4.5, 0, Math.PI * 2); ctx.stroke();
+    }
+  }
+
   function drawHud() {
     // Jugadores / equipos
     const pulse = (tick >> 4) % 2 ? '#ff4fb0' : '#3ff0d8';
-    for (let t = 0; t < 2; t++) {
+    if (st.np === 3) {
+      for (let i = 0; i < 3; i++) {
+        const ax = 4 + i * 120;
+        if (IMG['av' + i]) ctx.drawImage(IMG['av' + i], ax, 6, 32, 32);
+        if (st.turn === i && st.winner === null) { ctx.strokeStyle = pulse; ctx.lineWidth = 2; ctx.strokeRect(ax - 1, 5, 34, 34); ctx.lineWidth = 1; }
+        txt(NAMES[i], ax + 36, 8, st.turn === i ? '#ffe9a8' : '#bbb');
+        if (mode === 'online' && i === me) txt('(TU)', ax + 36, 32, '#ffe9a8');
+        if (is61(st.game)) txt(st.points[i] + ' PTS', ax + 36, 20, '#9fd');
+      }
+    }
+    for (let t = 0; t < 2 && st.np !== 3; t++) {
       const nx = t === 0 ? 76 : 284, al = t === 0 ? 'left' : 'right';
       const g = st.groups[t];
       let ballX0, ballY;
@@ -322,7 +368,7 @@
           if (mode === 'online' && i === me) txt('TU', ax + 16, 40, '#ffe9a8', 'center');
         });
         const tx = t === 0 ? 82 : 278;
-        txt('EQUIPO ' + (t === 0 ? 'A' : 'B'), tx, 8, Rules.team(st.turn) === t ? '#ffe9a8' : '#bbb', al);
+        txt('EQUIPO ' + (t === 0 ? 'A' : 'B'), tx, 8, Rules.team(st.turn, st.np) === t ? '#ffe9a8' : '#bbb', al);
         if (g) txt(g.toUpperCase(), tx, 22, '#9fd', al);
         ballX0 = t === 0 ? 11 : 349; ballY = 60;
       }
@@ -338,11 +384,16 @@
     // Bola 9 / bola 10 / en orden: bola objetivo y bolas que quedan
     if (st.game !== 8) {
       const target = Rules.lowest(st);
-      const last = st.game === 'orden' ? 15 : st.game;
-      if (IMG.bolasG && target < 99) ctx.drawImage(IMG.bolasG, target * 32, 0, 32, 32, 164, 26, 32, 32);
-      for (let n = 1; n <= last; n++) drawBall(n, 180 + (n - (last + 1) / 2) * 11, 68, Rules.ball(st, n).on ? 1 : 0.25);
+      const last = is61(st.game) ? 15 : st.game;
+      if (st.np === 3) {
+        if (IMG.bolasG && target < 99) ctx.drawImage(IMG.bolasG, target * 32, 0, 32, 32, 8, 46, 32, 32);
+        for (let n = 1; n <= last; n++) drawBall(n, 196 + (n - (last + 1) / 2) * 11, 64, Rules.ball(st, n).on ? 1 : 0.25);
+      } else {
+        if (IMG.bolasG && target < 99) ctx.drawImage(IMG.bolasG, target * 32, 0, 32, 32, 164, 26, 32, 32);
+        for (let n = 1; n <= last; n++) drawBall(n, 180 + (n - (last + 1) / 2) * 11, 68, Rules.ball(st, n).on ? 1 : 0.25);
+      }
     }
-    if (st.game === 'orden') {
+    if (is61(st.game) && st.np !== 3) {
       for (let t = 0; t < 2; t++) {
         const x = st.np === 2 ? (t === 0 ? 76 : 284) : (t === 0 ? 82 : 278);
         txt(st.points[t] + ' PTS', x, st.np === 2 ? 26 : 22, '#9fd', t === 0 ? 'left' : 'right');
@@ -396,21 +447,22 @@
   }
 
   function drawBoard() {
-    const y0 = 214, h = 200;
+    const rows = Rules.sides(st), rowH = rows === 3 ? 64 : 72;
+    const h = 128 + (rows - 1) * rowH, y0 = rows === 3 ? 192 : 214;
     ctx.fillStyle = 'rgba(10,5,2,0.82)'; ctx.fillRect(8, y0, W - 16, h);
     ctx.strokeStyle = (tick >> 4) % 2 ? '#ff4fb0' : '#3ff0d8'; ctx.lineWidth = 2;
     ctx.strokeRect(9, y0 + 1, W - 18, h - 2); ctx.lineWidth = 1;
     txt('MARCADOR', 180, y0 + 12, '#ffe9a8', 'center', 16);
-    for (let t = 0; t < 2; t++) {
-      const ry = y0 + 52 + t * 72;
+    for (let t = 0; t < rows; t++) {
+      const ry = y0 + 52 + t * rowH;
       const label = st.np === 4 ? 'EQUIPO ' + (t === 0 ? 'A' : 'B') + ': ' + NAMES[t] + ' Y ' + NAMES[t + 2] : NAMES[t];
-      const pts = st.game === 'orden' ? '  ' + st.points[t] + ' PTS' : '';
-      txt(label + pts, 22, ry - 8, Rules.team(st.turn) === t ? '#ffe9a8' : '#ddd');
+ const pts = is61(st.game) ? '  ' + st.points[t] + ' PTS' : '';
+      txt(label + pts, 22, ry - 8, Rules.team(st.turn, st.np) === t ? '#ffe9a8' : '#ddd');
       const list = (st.potted && st.potted[t]) || [];
       drawShelf(18, ry + 26, W - 36);
       list.forEach((n, k) => {
         if (boardNew.includes(n) && (tick >> 3) % 2) return;     // las recién metidas parpadean
-        ctx.drawImage(IMG.bolas, n * 10, 0, 10, 10, 22 + k * 21, ry + 6, 20, 20);
+        drawBigBall(n, 30 + k * 21, ry + 15);
       });
       if (!list.length) txt('SIN BOLAS', 180, ry + 12, '#777', 'center');
     }
@@ -422,7 +474,7 @@
     const px = (W - 226) / 2, py = 150;
     if (IMG.pizarra) ctx.drawImage(IMG.pizarra, px, py, 226, 194);
     if (IMG.trofeo) ctx.drawImage(IMG.trofeo, 164, py + 46);
-    const who = mode === 'online' ? (st.winner === Rules.team(me) ? 'GANASTE!' : 'PERDISTE')
+    const who = mode === 'online' ? (st.winner === Rules.team(me, st.np) ? 'GANASTE!' : 'PERDISTE')
       : st.np === 4 ? 'GANA EQUIPO ' + (st.winner === 0 ? 'A' : 'B') : 'GANA ' + NAMES[st.winner];
     txt(who, 180, py + 82, '#ffe9a8', 'center', 16);
     if (st.np === 4) txt(NAMES[st.winner] + ' Y ' + NAMES[st.winner + 2], 180, py + 106, '#fff', 'center');
