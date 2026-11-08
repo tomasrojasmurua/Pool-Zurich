@@ -59,7 +59,8 @@
   const cue = () => Rules.ball(st, 0);
 
   let gameType = 8;           // juego elegido en el menú: 8, 9 o 10
-  const GAMES = [8, 9, 10];
+  const GAMES = [8, 9, 10, 'orden'];
+  const gameName = g => g === 'orden' ? 'EN ORDEN' : 'BOLA ' + g;
   function startGame(seed, first, np, game) {
     st = Rules.newGame(seed, first, np, game || gameType);
     phase = 'aim'; shot = null; pendingSync = null; pull = 0; aim = { x: 0, y: -1 }; remoteAim = null;
@@ -215,8 +216,8 @@
     if (IMG.logo) ctx.drawImage(IMG.logo, 20, 16);
     txt('POOL ZURICH', 180, 72, '#ffe9a8', 'center', 16);
     if (screen === 'menu') {
-      button('< BOLA ' + gameType + ' >', 76, 280, () => { gameType = GAMES[(GAMES.indexOf(gameType) + 1) % GAMES.length]; });
-      txt(gameType === 8 ? 'LISAS CONTRA RAYADAS' : 'TOCA SIEMPRE LA MAS BAJA', 180, 342, '#ffe9a8', 'center');
+      button('< ' + gameName(gameType) + ' >', 76, 280, () => { gameType = GAMES[(GAMES.indexOf(gameType) + 1) % GAMES.length]; });
+      txt(gameType === 8 ? 'LISAS CONTRA RAYADAS' : gameType === 'orden' ? 'BOLAS EN LOS DIAMANTES, EN ORDEN' : 'TOCA SIEMPRE LA MAS BAJA', 180, 342, '#ffe9a8', 'center');
       button('2 JUGADORES', 76, 356, () => { mode = 'local'; startGame((Math.random() * 1e9) | 0, 0, 2); });
       button('4 JUGADORES', 76, 422, () => { mode = 'local'; startGame((Math.random() * 1e9) | 0, 0, 4); });
       button('CREAR SALA', 76, 488, hostOnline);
@@ -321,11 +322,18 @@
       }
     }
 
-    // Bola 9 / bola 10: bola objetivo y bolas que quedan
+    // Bola 9 / bola 10 / en orden: bola objetivo y bolas que quedan
     if (st.game !== 8) {
       const target = Rules.lowest(st);
+      const last = st.game === 'orden' ? 15 : st.game;
       if (IMG.bolasG && target < 99) ctx.drawImage(IMG.bolasG, target * 32, 0, 32, 32, 164, 26, 32, 32);
-      for (let n = 1; n <= st.game; n++) drawBall(n, 180 + (n - (st.game + 1) / 2) * 11, 68, Rules.ball(st, n).on ? 1 : 0.25);
+      for (let n = 1; n <= last; n++) drawBall(n, 180 + (n - (last + 1) / 2) * 11, 68, Rules.ball(st, n).on ? 1 : 0.25);
+    }
+    if (st.game === 'orden') {
+      for (let t = 0; t < 2; t++) {
+        const x = st.np === 2 ? (t === 0 ? 76 : 284) : (t === 0 ? 82 : 278);
+        txt(st.points[t] + ' PTS', x, st.np === 2 ? 26 : 22, '#9fd', t === 0 ? 'left' : 'right');
+      }
     }
 
     // Botones laterales
@@ -350,7 +358,7 @@
     if (st.winner !== null) line1 = '';
     else if (mode === 'online') line1 = st.turn === me ? 'TU TURNO' : 'TURNO: ' + NAMES[st.turn];
     else line1 = 'TURNO: ' + NAMES[st.turn];
-    if (st.winner === null && st.game !== 8) line1 = 'BOLA ' + st.game + ' - ' + line1;
+    if (st.winner === null && st.game !== 8) line1 = gameName(st.game) + ' - ' + line1;
     if (phase === 'wait') line2 = 'SINCRONIZANDO...';
     else if (toastT > 0) line2 = toast;
     else if (canControl() && st.ballInHand) line2 = 'BOLA EN MANO: MUEVE LA BLANCA';
