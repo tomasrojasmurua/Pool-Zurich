@@ -218,6 +218,7 @@
       button('CREAR SALA', 76, 488, hostOnline);
       button('UNIRSE', 76, 554, joinOnline);
       txt('4 JUGADORES = 2 CONTRA 2', 180, 622, '#ccc', 'center');
+      txt('V' + VERSION, 356, 4, '#aaa', 'right');
     } else {
       ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(0, 0, W, H);
       const px = (W - 226) / 2, py = 190;
@@ -315,6 +316,7 @@
         });
       }
     }
+
 
     // Botones laterales
     if (IMG.casa) ctx.drawImage(IMG.casa, 2, 92);

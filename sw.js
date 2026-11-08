@@ -1,5 +1,6 @@
 // Guarda el juego en el celular para que abra rápido y sin conexión
-const CACHE = 'pool-zurich-v2';
+importScripts('js/version.js');
+const CACHE = 'pool-zurich-' + VERSION;
 const FILES = [
   './',
   'index.html',
@@ -8,6 +9,7 @@ const FILES = [
   'js/rules.js',
   'js/net.js',
   'js/game.js',
+  'js/version.js',
   'js/vendor/peerjs.min.js',
   'assets/bolas-10.png',
   'assets/bolas-32.png',
