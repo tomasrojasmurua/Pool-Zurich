@@ -1,5 +1,5 @@
 // Guarda el juego en el celular para que abra rápido y sin conexión
-const CACHE = 'pool-zurich-v1';
+const CACHE = 'pool-zurich-v2';
 const FILES = [
   './',
   'index.html',

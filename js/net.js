@@ -1,7 +1,9 @@
-// Multijugador online con PeerJS (conexión directa entre los dos celulares)
+// Multijugador online con PeerJS. El anfitrión recibe hasta 3 invitados
+// y reenvía a todos lo que manda cada uno (conexión en estrella).
 const Net = (() => {
   const PREFIX = 'pool-zurich-sala-';
-  let peer = null, conn = null, handlers = {};
+  const MAX_GUESTS = 3;
+  let peer = null, conns = [], handlers = {}, isHost = false;
 
   const code = () => {
     const abc = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
@@ -10,20 +12,28 @@ const Net = (() => {
     return s;
   };
 
-  function wire(c) {
-    conn = c;
-    c.on('open', () => handlers.open && handlers.open());
-    c.on('data', d => handlers.data && handlers.data(d));
-    c.on('close', () => handlers.close && handlers.close());
-    c.on('error', () => handlers.close && handlers.close());
-  }
+  const count = () => conns.filter(c => c.open).length + 1;
 
   function host(h) {
-    handlers = h;
+    handlers = h; isHost = true; conns = [];
     const room = code();
     peer = new Peer(PREFIX + room);
     peer.on('open', () => h.room && h.room(room));
-    peer.on('connection', c => { if (conn) { c.close(); return; } wire(c); });
+    peer.on('connection', c => {
+      if (conns.length >= MAX_GUESTS || h.locked && h.locked()) { c.on('open', () => c.close()); return; }
+      conns.push(c);
+      c.on('open', () => h.players && h.players(count()));
+      c.on('data', d => {
+        for (const o of conns) if (o !== c && o.open) o.send(d);   // reenviar a los demás
+        h.data && h.data(d);
+      });
+      const gone = () => {
+        const i = conns.indexOf(c);
+        if (i >= 0) { conns.splice(i, 1); h.left && h.left(count()); }
+      };
+      c.on('close', gone);
+      c.on('error', gone);
+    });
     peer.on('error', e => {
       if (e.type === 'unavailable-id') { leave(); host(h); return; }
       h.error && h.error(e);
@@ -31,19 +41,29 @@ const Net = (() => {
   }
 
   function join(room, h) {
-    handlers = h;
+    handlers = h; isHost = false; conns = [];
     peer = new Peer();
-    peer.on('open', () => wire(peer.connect(PREFIX + room.toUpperCase(), { reliable: true })));
+    peer.on('open', () => {
+      const c = peer.connect(PREFIX + room.toUpperCase(), { reliable: true });
+      conns = [c];
+      c.on('open', () => h.open && h.open());
+      c.on('data', d => h.data && h.data(d));
+      c.on('close', () => h.close && h.close());
+      c.on('error', () => h.close && h.close());
+    });
     peer.on('error', e => h.error && h.error(e));
   }
 
-  function send(d) { if (conn && conn.open) conn.send(d); }
+  // Envía a todos (anfitrión) o al anfitrión (invitado, que lo reenvía)
+  function send(d) { for (const c of conns) if (c.open) c.send(d); }
+  // Solo anfitrión: un mensaje distinto para cada invitado (i = 0, 1, 2)
+  function sendEach(fn) { conns.filter(c => c.open).forEach((c, i) => c.send(fn(i))); }
 
   function leave() {
-    try { conn && conn.close(); } catch (e) {}
+    for (const c of conns) { try { c.close(); } catch (e) {} }
     try { peer && peer.destroy(); } catch (e) {}
-    conn = null; peer = null;
+    conns = []; peer = null;
   }
 
-  return { host, join, send, leave };
+  return { host, join, send, sendEach, leave, count, get isHost() { return isHost; } };
 })();

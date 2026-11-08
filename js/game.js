@@ -12,7 +12,9 @@
     fondo: 'assets/fondo-bar.png', mesa: 'assets/mesa.png', bolas: 'assets/bolas-10.png',
     bolasG: 'assets/bolas-32.png', logo: 'assets/logo.png', inicio: 'assets/inicio.png',
     taco0: 'assets/tacos/taco-clasico.png', taco1: 'assets/tacos/taco-negro.png',
+    taco2: 'assets/tacos/taco-llamas.png', taco3: 'assets/tacos/taco-negro.png',
     av0: 'assets/personajes/avatar-campeona.png', av1: 'assets/personajes/avatar-tiburon.png',
+    av2: 'assets/personajes/avatar-dueno.png', av3: 'assets/personajes/avatar-novata.png',
     btn: 'assets/ui/boton-normal.png', btnP: 'assets/ui/boton-presionado.png', btnD: 'assets/ui/boton-desactivado.png',
     pizarra: 'assets/ui/pizarra.png', barra: 'assets/ui/barra-potencia.png', tri: 'assets/ui/triangulo.png',
     casa: 'assets/ui/icono-inicio.png', son: 'assets/ui/icono-sonido.png', sil: 'assets/ui/icono-silencio.png',
@@ -21,7 +23,7 @@
   const load = Object.entries(files).map(([k, src]) => new Promise(res => {
     const im = new Image(); im.onload = () => { IMG[k] = im; res(); }; im.onerror = res; im.src = src;
   }));
-  const NAMES = ['CAMPEONA', 'TIBURON'];
+  const NAMES = ['CAMPEONA', 'TIBURON', 'DUEÑO', 'NOVATA'];   // jugadores pares = equipo A, impares = equipo B
 
   // ---------- Sonido (sintetizado) ----------
   let actx = null, muted = false, lastSnd = 0;
@@ -48,7 +50,7 @@
   let shot = null, pendingSync = null, iShot = false;
   let aim = { x: 0, y: -1 }, pull = 0;
   let remoteAim = null;
-  let lobby = { text: '', code: '' };
+  let lobby = { text: '', code: '', players: 1 };
   let toast = '', toastT = 0;
   let tick = 0;
 
@@ -56,8 +58,8 @@
   const canControl = () => screen === 'game' && phase === 'aim' && st && st.winner === null && (mode === 'local' || st.turn === me);
   const cue = () => Rules.ball(st, 0);
 
-  function startGame(seed, first) {
-    st = Rules.newGame(seed, first);
+  function startGame(seed, first, np) {
+    st = Rules.newGame(seed, first, np);
     phase = 'aim'; shot = null; pendingSync = null; pull = 0; aim = { x: 0, y: -1 }; remoteAim = null;
     screen = 'game';
   }
@@ -111,21 +113,22 @@
   // ---------- Red ----------
   const netHandlers = {
     room: code => { lobby.code = code; lobby.text = 'COMPARTE ESTE CODIGO'; },
-    open: () => {
-      if (me === 0) {
-        const seed = (Math.random() * 1e9) | 0;
-        Net.send({ t: 'start', seed, first: 0 });
-        startGame(seed, 0);
-      }
+    players: n => { lobby.players = n; },
+    locked: () => screen === 'game',
+    left: n => {
+      lobby.players = n;
+      if (screen === 'game') { Net.send({ t: 'bye' }); Net.leave(); screen = 'menu'; st = null; toast = 'UN JUGADOR SE DESCONECTO'; toastT = 200; }
     },
+    open: () => { lobby.text = 'CONECTADO'; },
     data: d => {
-      if (d.t === 'start') startGame(d.seed, d.first);
+      if (d.t === 'start') { if (d.me !== undefined) me = d.me; startGame(d.seed, d.first, d.np); }
+      else if (d.t === 'bye') netHandlers.close();
       else if (d.t === 'shot') { iShot = false; applyShot(d); }
       else if (d.t === 'sync') { if (phase === 'moving') pendingSync = d.st; else applySync(d.st); }
       else if (d.t === 'aim') remoteAim = d;
     },
     close: () => {
-      if (screen !== 'menu') { Net.leave(); screen = 'menu'; toast = 'EL RIVAL SE DESCONECTO'; toastT = 200; }
+      if (screen !== 'menu') { Net.leave(); screen = 'menu'; st = null; toast = 'UN JUGADOR SE DESCONECTO'; toastT = 200; }
     },
     error: e => {
       Net.leave(); screen = 'menu';
@@ -133,11 +136,20 @@
     },
   };
 
-  function hostOnline() { mode = 'online'; me = 0; screen = 'lobby'; lobby = { text: 'CREANDO SALA...', code: '' }; Net.host(netHandlers); }
+  function hostOnline() { mode = 'online'; me = 0; screen = 'lobby'; lobby = { text: 'CREANDO SALA...', code: '', players: 1 }; Net.host(netHandlers); }
+  // El anfitrión empieza la partida (con 2 o 4 jugadores conectados)
+  function startOnline() {
+    const np = Net.count();
+    if (np !== 2 && np !== 4) return;
+    const seed = (Math.random() * 1e9) | 0;
+    Net.sendEach(i => ({ t: 'start', seed, first: 0, np, me: i + 1 }));
+    me = 0;
+    startGame(seed, 0, np);
+  }
   function joinOnline() {
     const c = (prompt('Código de la sala (4 letras):') || '').trim().toUpperCase();
     if (c.length !== 4) return;
-    mode = 'online'; me = 1; screen = 'lobby'; lobby = { text: 'CONECTANDO...', code: c };
+    mode = 'online'; me = 1; screen = 'lobby'; lobby = { text: 'CONECTANDO...', code: c, players: 0 };
     Net.join(c, netHandlers);
   }
   function toMenu() { if (mode === 'online') Net.leave(); screen = 'menu'; st = null; }
@@ -201,20 +213,27 @@
     if (IMG.logo) ctx.drawImage(IMG.logo, 20, 16);
     txt('POOL ZURICH', 180, 72, '#ffe9a8', 'center', 16);
     if (screen === 'menu') {
-      button('2 JUGADORES', 76, 400, () => { mode = 'local'; startGame((Math.random() * 1e9) | 0, 0); });
-      button('CREAR SALA', 76, 468, hostOnline);
-      button('UNIRSE', 76, 536, joinOnline);
-      txt('2 JUGADORES: EN ESTE CELULAR', 180, 606, '#ccc', 'center');
-      txt('SALA: ONLINE CON UN AMIGO', 180, 620, '#ccc', 'center');
+      button('2 JUGADORES', 76, 356, () => { mode = 'local'; startGame((Math.random() * 1e9) | 0, 0, 2); });
+      button('4 JUGADORES', 76, 422, () => { mode = 'local'; startGame((Math.random() * 1e9) | 0, 0, 4); });
+      button('CREAR SALA', 76, 488, hostOnline);
+      button('UNIRSE', 76, 554, joinOnline);
+      txt('4 JUGADORES = 2 CONTRA 2', 180, 622, '#ccc', 'center');
     } else {
       ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(0, 0, W, H);
       const px = (W - 226) / 2, py = 190;
       if (IMG.pizarra) ctx.drawImage(IMG.pizarra, px, py, 226, 194);
       txt('SALA ONLINE', 180, py + 50, '#ffe9a8', 'center');
       if (lobby.code) txt(lobby.code, 180, py + 82, '#fff', 'center', 32);
-      txt(lobby.text, 180, py + 132, '#cfe', 'center');
-      if (me === 0 && lobby.code) txt('ESPERANDO RIVAL...', 180, py + 150, '#cfe', 'center');
-      button('CANCELAR', 76, 420, toMenu);
+      txt(lobby.text, 180, py + 124, '#cfe', 'center');
+      if (me === 0 && lobby.code) {
+        const n = lobby.players;
+        txt('JUGADORES: ' + n + '/4', 180, py + 142, '#fff', 'center');
+        txt(n === 3 ? 'FALTA 1 PARA EL 2 VS 2' : n === 1 ? 'ESPERANDO JUGADORES...' : 'LISTOS PARA JUGAR', 180, py + 158, '#cfe', 'center');
+        button('EMPEZAR', 76, 400, startOnline, n !== 2 && n !== 4);
+      } else if (me !== 0 && lobby.text === 'CONECTADO') {
+        txt('ESPERANDO AL ANFITRION', 180, py + 142, '#cfe', 'center');
+      }
+      button('CANCELAR', 76, 470, toMenu);
     }
   }
 
@@ -263,27 +282,36 @@
   }
 
   function drawHud() {
-    // Jugadores
-    for (let i = 0; i < 2; i++) {
-      const ax = i === 0 ? 6 : 290;
-      const av = IMG['av' + i];
-      if (av) ctx.drawImage(av, ax, 10);
-      if (st.turn === i && st.winner === null) {
-        ctx.strokeStyle = (tick >> 4) % 2 ? '#ff4fb0' : '#3ff0d8'; ctx.lineWidth = 2;
-        ctx.strokeRect(ax - 1, 9, 66, 66); ctx.lineWidth = 1;
+    // Jugadores / equipos
+    const pulse = (tick >> 4) % 2 ? '#ff4fb0' : '#3ff0d8';
+    for (let t = 0; t < 2; t++) {
+      const nx = t === 0 ? 76 : 284, al = t === 0 ? 'left' : 'right';
+      const g = st.groups[t];
+      let ballX0, ballY;
+      if (st.np === 2) {
+        const ax = t === 0 ? 6 : 290;
+        if (IMG['av' + t]) ctx.drawImage(IMG['av' + t], ax, 10);
+        if (st.turn === t && st.winner === null) { ctx.strokeStyle = pulse; ctx.lineWidth = 2; ctx.strokeRect(ax - 1, 9, 66, 66); ctx.lineWidth = 1; }
+        txt(NAMES[t] + (mode === 'online' && t === me ? ' (TU)' : ''), nx, 12, st.turn === t ? '#ffe9a8' : '#bbb', al);
+        if (g) txt(g.toUpperCase(), nx, 26, '#9fd', al);
+        ballX0 = t === 0 ? 81 : 279; ballY = 46;
+      } else {
+        [t, t + 2].forEach((i, k) => {
+          const ax = t === 0 ? 6 + k * 36 : 322 - k * 36;
+          if (IMG['av' + i]) ctx.drawImage(IMG['av' + i], ax, 6, 32, 32);
+          if (st.turn === i && st.winner === null) { ctx.strokeStyle = pulse; ctx.lineWidth = 2; ctx.strokeRect(ax - 1, 5, 34, 34); ctx.lineWidth = 1; }
+          if (mode === 'online' && i === me) txt('TU', ax + 16, 40, '#ffe9a8', 'center');
+        });
+        const tx = t === 0 ? 82 : 278;
+        txt('EQUIPO ' + (t === 0 ? 'A' : 'B'), tx, 8, Rules.team(st.turn) === t ? '#ffe9a8' : '#bbb', al);
+        if (g) txt(g.toUpperCase(), tx, 22, '#9fd', al);
+        ballX0 = t === 0 ? 11 : 349; ballY = 60;
       }
-      const name = NAMES[i] + (mode === 'online' && i === me ? ' (TU)' : '');
-      const nx = i === 0 ? 76 : 284, al = i === 0 ? 'left' : 'right';
-      txt(name, nx, 12, st.turn === i ? '#ffe9a8' : '#bbb', al);
-      const g = st.groups[i];
-      if (g) txt(g.toUpperCase(), nx, 26, '#9fd', al);
       if (g) {
-        const list = Rules.groupBalls(g);
-        const cleared = Rules.remaining(st, g) === 0;
-        const balls = cleared ? [8] : list;
+        const balls = Rules.remaining(st, g) === 0 ? [8] : Rules.groupBalls(g);
         balls.forEach((n, k) => {
-          const bx = i === 0 ? 81 + k * 11 : 279 - (balls.length - 1 - k) * 11;
-          drawBall(n, bx, 46, Rules.ball(st, n).on ? 1 : 0.25);
+          const bx = t === 0 ? ballX0 + k * 11 : ballX0 - (balls.length - 1 - k) * 11;
+          drawBall(n, bx, ballY, Rules.ball(st, n).on ? 1 : 0.25);
         });
       }
     }
@@ -308,7 +336,7 @@
     // Mensajes abajo
     let line1, line2 = '';
     if (st.winner !== null) line1 = '';
-    else if (mode === 'online') line1 = st.turn === me ? 'TU TURNO' : 'TURNO DEL RIVAL';
+    else if (mode === 'online') line1 = st.turn === me ? 'TU TURNO' : 'TURNO: ' + NAMES[st.turn];
     else line1 = 'TURNO: ' + NAMES[st.turn];
     if (phase === 'wait') line2 = 'SINCRONIZANDO...';
     else if (toastT > 0) line2 = toast;
@@ -325,14 +353,16 @@
     const px = (W - 226) / 2, py = 150;
     if (IMG.pizarra) ctx.drawImage(IMG.pizarra, px, py, 226, 194);
     if (IMG.trofeo) ctx.drawImage(IMG.trofeo, 164, py + 46);
-    const who = mode === 'online' ? (st.winner === me ? 'GANASTE!' : 'PERDISTE') : 'GANA ' + NAMES[st.winner];
-    txt(who, 180, py + 90, '#ffe9a8', 'center', 16);
-    txt(st.msg, 180, py + 124, '#cfe', 'center');
+    const who = mode === 'online' ? (st.winner === Rules.team(me) ? 'GANASTE!' : 'PERDISTE')
+      : st.np === 4 ? 'GANA EQUIPO ' + (st.winner === 0 ? 'A' : 'B') : 'GANA ' + NAMES[st.winner];
+    txt(who, 180, py + 82, '#ffe9a8', 'center', 16);
+    if (st.np === 4) txt(NAMES[st.winner] + ' Y ' + NAMES[st.winner + 2], 180, py + 106, '#fff', 'center');
+    txt(st.msg, 180, py + 128, '#cfe', 'center');
     button('REVANCHA', 76, 370, () => {
       const seed = (Math.random() * 1e9) | 0, first = 1 - st.winner;
-      if (mode === 'online') Net.send({ t: 'start', seed, first });
-      startGame(seed, first);
-    });
+      if (mode === 'online') Net.send({ t: 'start', seed, first, np: st.np });
+      startGame(seed, first, st.np);
+    }, mode === 'online' && me !== 0);
     button('MENU', 76, 440, toMenu);
   }
 
