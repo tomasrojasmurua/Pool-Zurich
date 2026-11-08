@@ -13,6 +13,14 @@ Pool de bar en pixel art para jugar desde el celular.
 - **Bola en mano:** después de una falta, arrastra la bola blanca a donde quieras.
 - **Reglas:** bola 8. El primero en meter una bola elige lisas o rayadas. Gana quien mete la 8 después de terminar su grupo.
 
+## Juegos
+
+Se elige en el menú con el botón `< BOLA 8 >`.
+
+- **Bola 8:** lisas contra rayadas. Gana quien mete la 8 después de terminar su grupo.
+- **Bola 9:** bolas 1 a 9 en rombo. Siempre hay que tocar primero la bola más baja de la mesa. Gana quien mete la 9 en un tiro válido, aunque sea de rebote o combinación.
+- **Bola 10:** igual que la bola 9, pero con 10 bolas en triángulo. Gana quien mete la 10.
+
 ## Modos
 
 - **2 jugadores:** uno contra uno en el mismo celular, pasándolo.

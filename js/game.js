@@ -58,8 +58,10 @@
   const canControl = () => screen === 'game' && phase === 'aim' && st && st.winner === null && (mode === 'local' || st.turn === me);
   const cue = () => Rules.ball(st, 0);
 
-  function startGame(seed, first, np) {
-    st = Rules.newGame(seed, first, np);
+  let gameType = 8;           // juego elegido en el menú: 8, 9 o 10
+  const GAMES = [8, 9, 10];
+  function startGame(seed, first, np, game) {
+    st = Rules.newGame(seed, first, np, game || gameType);
     phase = 'aim'; shot = null; pendingSync = null; pull = 0; aim = { x: 0, y: -1 }; remoteAim = null;
     screen = 'game';
   }
@@ -121,7 +123,7 @@
     },
     open: () => { lobby.text = 'CONECTADO'; },
     data: d => {
-      if (d.t === 'start') { if (d.me !== undefined) me = d.me; startGame(d.seed, d.first, d.np); }
+      if (d.t === 'start') { if (d.me !== undefined) me = d.me; startGame(d.seed, d.first, d.np, d.game); }
       else if (d.t === 'bye') netHandlers.close();
       else if (d.t === 'shot') { iShot = false; applyShot(d); }
       else if (d.t === 'sync') { if (phase === 'moving') pendingSync = d.st; else applySync(d.st); }
@@ -142,9 +144,9 @@
     const np = Net.count();
     if (np !== 2 && np !== 4) return;
     const seed = (Math.random() * 1e9) | 0;
-    Net.sendEach(i => ({ t: 'start', seed, first: 0, np, me: i + 1 }));
+    Net.sendEach(i => ({ t: 'start', seed, first: 0, np, me: i + 1, game: gameType }));
     me = 0;
-    startGame(seed, 0, np);
+    startGame(seed, 0, np, gameType);
   }
   function joinOnline() {
     const c = (prompt('Código de la sala (4 letras):') || '').trim().toUpperCase();
@@ -213,6 +215,8 @@
     if (IMG.logo) ctx.drawImage(IMG.logo, 20, 16);
     txt('POOL ZURICH', 180, 72, '#ffe9a8', 'center', 16);
     if (screen === 'menu') {
+      button('< BOLA ' + gameType + ' >', 76, 280, () => { gameType = GAMES[(GAMES.indexOf(gameType) + 1) % GAMES.length]; });
+      txt(gameType === 8 ? 'LISAS CONTRA RAYADAS' : 'TOCA SIEMPRE LA MAS BAJA', 180, 342, '#ffe9a8', 'center');
       button('2 JUGADORES', 76, 356, () => { mode = 'local'; startGame((Math.random() * 1e9) | 0, 0, 2); });
       button('4 JUGADORES', 76, 422, () => { mode = 'local'; startGame((Math.random() * 1e9) | 0, 0, 4); });
       button('CREAR SALA', 76, 488, hostOnline);
@@ -243,7 +247,7 @@
     if (IMG.mesa) ctx.drawImage(IMG.mesa, TX, TY);
 
     // Triángulo antes del saque
-    if (st.isBreak && phase === 'aim' && IMG.tri) {
+    if (st.game === 8 && st.isBreak && phase === 'aim' && IMG.tri) {
       ctx.save(); ctx.translate(TX + 144, TY + Table.FOOT.y - 17); ctx.scale(1, -1);
       ctx.drawImage(IMG.tri, -33, -28); ctx.restore();
     }
@@ -317,6 +321,12 @@
       }
     }
 
+    // Bola 9 / bola 10: bola objetivo y bolas que quedan
+    if (st.game !== 8) {
+      const target = Rules.lowest(st);
+      if (IMG.bolasG && target < 99) ctx.drawImage(IMG.bolasG, target * 32, 0, 32, 32, 164, 26, 32, 32);
+      for (let n = 1; n <= st.game; n++) drawBall(n, 180 + (n - (st.game + 1) / 2) * 11, 68, Rules.ball(st, n).on ? 1 : 0.25);
+    }
 
     // Botones laterales
     if (IMG.casa) ctx.drawImage(IMG.casa, 2, 92);
@@ -340,6 +350,7 @@
     if (st.winner !== null) line1 = '';
     else if (mode === 'online') line1 = st.turn === me ? 'TU TURNO' : 'TURNO: ' + NAMES[st.turn];
     else line1 = 'TURNO: ' + NAMES[st.turn];
+    if (st.winner === null && st.game !== 8) line1 = 'BOLA ' + st.game + ' - ' + line1;
     if (phase === 'wait') line2 = 'SINCRONIZANDO...';
     else if (toastT > 0) line2 = toast;
     else if (canControl() && st.ballInHand) line2 = 'BOLA EN MANO: MUEVE LA BLANCA';
@@ -362,8 +373,8 @@
     txt(st.msg, 180, py + 128, '#cfe', 'center');
     button('REVANCHA', 76, 370, () => {
       const seed = (Math.random() * 1e9) | 0, first = 1 - st.winner;
-      if (mode === 'online') Net.send({ t: 'start', seed, first, np: st.np });
-      startGame(seed, first, st.np);
+      if (mode === 'online') Net.send({ t: 'start', seed, first, np: st.np, game: st.game });
+      startGame(seed, first, st.np, st.game);
     }, mode === 'online' && me !== 0);
     button('MENU', 76, 440, toMenu);
   }

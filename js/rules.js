@@ -1,36 +1,43 @@
-// Reglas de bola 8 (versión de bar, simplificada)
+// Reglas de bola 8, bola 9 y bola 10 (versión de bar, simplificada)
 const Rules = (() => {
   const SOLIDS = [1, 2, 3, 4, 5, 6, 7];
   const STRIPES = [9, 10, 11, 12, 13, 14, 15];
   const groupOf = n => (n >= 1 && n <= 7) ? 'lisas' : (n >= 9 && n <= 15) ? 'rayadas' : null;
   const groupBalls = g => g === 'lisas' ? SOLIDS : STRIPES;
 
-  function rack(seed) {
+  // Posiciones del rack: filas desde el vértice (el más cercano a la blanca) hacia atrás
+  const RACKS = {
+    8: [[1], [9, 2], [10, 8, 3], [11, 4, 12, 5], [13, 6, 14, 15, 7]],
+    9: [[1], [2, 3], [4, 9, 5], [6, 7], [8]],
+    10: [[1], [2, 3], [4, 10, 5], [6, 7, 8, 9]],
+  };
+
+  function rack(seed, game) {
     // Pequeño desorden reproducible para que cada saque sea distinto
     let s = seed >>> 0 || 1;
     const rnd = () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
-    const order = [1, 9, 2, 10, 8, 3, 11, 4, 12, 5, 13, 6, 14, 15, 7];
     const R = Table.R, gap = 0.6;
     const balls = [{ n: 0, x: 144, y: Table.HEAD_Y, vx: 0, vy: 0, on: true }];
-    let k = 0;
-    for (let row = 0; row < 5; row++) {
-      for (let j = 0; j <= row; j++) {
-        const n = order[k++];
+    RACKS[game].forEach((row, r) => {
+      row.forEach((n, j) => {
         balls.push({
           n,
-          x: Table.FOOT.x + (j - row / 2) * (2 * R + gap) + (rnd() - 0.5) * 0.05,
-          y: Table.FOOT.y - row * (2 * R + gap) * 0.866,
+          x: Table.FOOT.x + (j - (row.length - 1) / 2) * (2 * R + gap) + (rnd() - 0.5) * 0.05,
+          y: Table.FOOT.y - r * (2 * R + gap) * 0.866,
           vx: 0, vy: 0, on: true,
         });
-      }
-    }
+      });
+    });
     return balls;
   }
 
   // np = 2 (uno contra uno) o 4 (dos contra dos). Equipo de cada jugador = índice % 2.
-  function newGame(seed, firstTurn, np) {
+  // game = 8, 9 o 10 (bola 8, bola 9, bola 10)
+  function newGame(seed, firstTurn, np, game) {
+    game = game === 9 || game === 10 ? game : 8;
     return {
-      balls: rack(seed),
+      game,
+      balls: rack(seed, game),
       np: np === 4 ? 4 : 2,
       turn: firstTurn || 0,
       groups: [null, null],
@@ -49,7 +56,7 @@ const Rules = (() => {
 
   function startShot(st) {
     const g = st.groups[team(st.turn)];
-    return { firstHit: null, pocketed: [], clearedBefore: g ? remaining(st, g) === 0 : false };
+    return { firstHit: null, pocketed: [], clearedBefore: g ? remaining(st, g) === 0 : false, lowestBefore: lowest(st) };
   }
 
   function canPlaceCue(st, x, y) {
@@ -80,8 +87,34 @@ const Rules = (() => {
     for (const [x, y] of tries) if (canPlaceCue(st, x, y)) { cue.x = x; cue.y = y; return; }
   }
 
+  // Bola 9 y bola 10: siempre se toca primero la bola más baja; gana quien mete la bola del juego
+  const lowest = st => st.balls.filter(b => b.on && b.n !== 0).reduce((m, b) => Math.min(m, b.n), 99);
+
+  function resolveRotation(st, shot) {
+    const me = team(st.turn), next = (st.turn + 1) % st.np;
+    const target = shot.lowestBefore;
+    const cueIn = shot.pocketed.includes(0);
+    const objects = shot.pocketed.filter(n => n !== 0);
+    let foul = false, why = '';
+    if (shot.firstHit === null) { foul = true; why = 'NO TOCÓ NINGUNA BOLA'; }
+    else if (shot.firstHit !== target) { foul = true; why = 'HABÍA QUE TOCAR LA ' + target; }
+    if (cueIn) { foul = true; why = 'METIÓ LA BLANCA'; }
+    st.isBreak = false; st.kitchen = false; st.shots++;
+
+    if (objects.includes(st.game)) {
+      if (!foul) { st.winner = me; st.msg = 'METIÓ LA ' + st.game; return st; }
+      respot(st, st.game);
+    }
+    if (cueIn) placeCueDefault(st);
+    if (foul) { st.turn = next; st.ballInHand = true; st.msg = 'FALTA: ' + why; }
+    else if (objects.length) { st.ballInHand = false; st.msg = 'SIGUE JUGANDO'; }
+    else { st.turn = next; st.ballInHand = false; st.msg = ''; }
+    return st;
+  }
+
   // Se llama cuando todas las bolas se detienen
   function resolve(st, shot) {
+    if (st.game === 9 || st.game === 10) return resolveRotation(st, shot);
     const me = team(st.turn), other = 1 - me;
     const next = (st.turn + 1) % st.np;
     const cueIn = shot.pocketed.includes(0);
@@ -132,5 +165,5 @@ const Rules = (() => {
     return st;
   }
 
-  return { newGame, team, startShot, resolve, canPlaceCue, groupOf, groupBalls, remaining, ball };
+  return { newGame, team, lowest, startShot, resolve, canPlaceCue, groupOf, groupBalls, remaining, ball };
 })();
