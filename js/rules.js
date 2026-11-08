@@ -59,16 +59,17 @@ const Rules = (() => {
     return balls;
   }
 
-  // np = 2 (uno contra uno) o 4 (dos contra dos). Equipo de cada jugador = índice % 2.
+  // np = 2 (uno contra uno), 3 (cada uno por su cuenta) o 4 (dos contra dos).
+  // Con 2 o 4 hay dos bandos (jugador % 2); con 3 cada jugador es su propio bando.
   // game = 8, 9 o 10 (bola 8, bola 9, bola 10)
   function newGame(seed, firstTurn, np, game) {
     game = game === 9 || game === 10 || game === 'orden' || game === 'casa' ? game : 8;
     const orden = game === 'orden' || game === 'casa';
     return {
       game,
-      points: [0, 0],
+      points: np === 3 ? [0, 0, 0] : [0, 0],
       balls: rack(seed, game),
-      np: np === 4 ? 4 : 2,
+      np: np === 4 || np === 3 ? np : 2,
       turn: firstTurn || 0,
       groups: [null, null],
       ballInHand: true,
@@ -77,16 +78,17 @@ const Rules = (() => {
       winner: null,
       msg: orden ? 'SAQUE - GANA QUIEN LLEGA A 61' : 'SAQUE',
       shots: 0,
-      potted: [[], []],       // bolas metidas por cada equipo (para el marcador)
+      potted: np === 3 ? [[], [], []] : [[], []],   // bolas metidas por cada bando (para el marcador)
     };
   }
 
   const ball = (st, n) => st.balls.find(b => b.n === n);
   const remaining = (st, g) => groupBalls(g).filter(n => ball(st, n).on).length;
-  const team = i => i % 2;
+  const team = (i, np) => np === 3 ? i : i % 2;
+  const sides = st => st.np === 3 ? 3 : 2;
 
   function startShot(st) {
-    const g = st.groups[team(st.turn)];
+    const g = st.groups[team(st.turn, st.np)];
     return { firstHit: null, pocketed: [], clearedBefore: g ? remaining(st, g) === 0 : false, lowestBefore: lowest(st) };
   }
 
@@ -122,7 +124,7 @@ const Rules = (() => {
   const lowest = st => st.balls.filter(b => b.on && b.n !== 0).reduce((m, b) => Math.min(m, b.n), 99);
 
   function resolveRotation(st, shot) {
-    const me = team(st.turn), next = (st.turn + 1) % st.np;
+    const me = team(st.turn, st.np), next = (st.turn + 1) % st.np;
     const target = shot.lowestBefore;
     const cueIn = shot.pocketed.includes(0);
     const objects = shot.pocketed.filter(n => n !== 0);
@@ -148,7 +150,7 @@ const Rules = (() => {
   // Con falta: pasa el turno, bola en mano detrás de la línea de salida y las bolas metidas vuelven al punto del pie.
   // Gana el primer jugador (o pareja) que llega a 61 de los 120 puntos.
   function resolveOrden(st, shot) {
-    const me = team(st.turn), next = (st.turn + 1) % st.np;
+    const me = team(st.turn, st.np), next = (st.turn + 1) % st.np;
     const target = shot.lowestBefore;
     const cueIn = shot.pocketed.includes(0);
     const objects = shot.pocketed.filter(n => n !== 0);
@@ -163,9 +165,13 @@ const Rules = (() => {
     else { pts = objects.reduce((a, n) => a + n, 0); st.points[me] += pts; }
 
     const left = st.balls.some(b => b.on && b.n !== 0);
-    if (st.points[me] >= 61 || !left) {
-      st.winner = st.points[me] >= st.points[1 - me] ? me : 1 - me;
-      st.msg = st.points[0] + ' A ' + st.points[1] + ' PUNTOS';
+    // Con 2 bandos se gana con 61 de 120; con 3 jugadores, con 41 (120 / 3 + 1)
+    const goal = sides(st) === 3 ? 41 : 61;
+    if (st.points[me] >= goal || !left) {
+      let best = me;
+      st.points.forEach((p, i) => { if (p > st.points[best]) best = i; });
+      st.winner = best;
+      st.msg = st.points.join(' - ') + ' PUNTOS';
       return st;
     }
     st.kitchen = foul;
@@ -179,17 +185,17 @@ const Rules = (() => {
   // Se llama cuando todas las bolas se detienen
   function resolve(st, shot) {
     // Se acredita al equipo que tiró cada bola que entró y no volvió a la mesa
-    const shooter = team(st.turn);
+    const shooter = team(st.turn, st.np);
     resolveGame(st, shot);
-    if (!st.potted) st.potted = [[], []];
-    for (const n of shot.pocketed) if (n !== 0 && !ball(st, n).on && !st.potted[0].includes(n) && !st.potted[1].includes(n)) st.potted[shooter].push(n);
+    if (!st.potted) st.potted = st.np === 3 ? [[], [], []] : [[], []];
+    for (const n of shot.pocketed) if (n !== 0 && !ball(st, n).on && !st.potted.some(l => l.includes(n))) st.potted[shooter].push(n);
     return st;
   }
 
   function resolveGame(st, shot) {
     if (st.game === 'orden' || st.game === 'casa') return resolveOrden(st, shot);
     if (st.game === 9 || st.game === 10) return resolveRotation(st, shot);
-    const me = team(st.turn), other = 1 - me;
+    const me = team(st.turn, st.np), other = 1 - me;
     const next = (st.turn + 1) % st.np;
     const cueIn = shot.pocketed.includes(0);
     const eightIn = shot.pocketed.includes(8);
@@ -239,5 +245,5 @@ const Rules = (() => {
     return st;
   }
 
-  return { newGame, team, lowest, startShot, resolve, canPlaceCue, groupOf, groupBalls, remaining, ball };
+  return { newGame, team, sides, lowest, startShot, resolve, canPlaceCue, groupOf, groupBalls, remaining, ball };
 })();
