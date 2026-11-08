@@ -2,6 +2,8 @@
 
 Pool de bar en pixel art para jugar desde el celular.
 
+**Versión actual:** ver `js/version.js` (también aparece arriba a la derecha del menú).
+
 **Jugar:** https://tomasrojasmurua.github.io/Pool-Zurich/
 
 ## Cómo se juega
