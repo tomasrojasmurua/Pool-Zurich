@@ -10,6 +10,7 @@ Pool de bar en pixel art para jugar desde el celular.
 
 - **Apuntar:** toca o arrastra el dedo sobre la mesa hacia donde quieres tirar.
 - **Tirar:** arrastra hacia abajo la barra de potencia de la derecha y suelta.
+- **Marcador:** cada vez que entra una bola aparece el marcador con las bolas que metió cada jugador o equipo, sobre sus repisas. También se abre tocando la tiza (a la izquierda de la mesa).
 - **Bola en mano:** después de una falta, arrastra la bola blanca a donde quieras.
 - **Reglas:** bola 8. El primero en meter una bola elige lisas o rayadas. Gana quien mete la 8 después de terminar su grupo.
 

@@ -56,6 +56,7 @@ const Rules = (() => {
       winner: null,
       msg: orden ? 'SAQUE - GANA QUIEN LLEGA A 61' : 'SAQUE',
       shots: 0,
+      potted: [[], []],       // bolas metidas por cada equipo (para el marcador)
     };
   }
 
@@ -156,6 +157,15 @@ const Rules = (() => {
 
   // Se llama cuando todas las bolas se detienen
   function resolve(st, shot) {
+    // Se acredita al equipo que tiró cada bola que entró y no volvió a la mesa
+    const shooter = team(st.turn);
+    resolveGame(st, shot);
+    if (!st.potted) st.potted = [[], []];
+    for (const n of shot.pocketed) if (n !== 0 && !ball(st, n).on && !st.potted[0].includes(n) && !st.potted[1].includes(n)) st.potted[shooter].push(n);
+    return st;
+  }
+
+  function resolveGame(st, shot) {
     if (st.game === 'orden') return resolveOrden(st, shot);
     if (st.game === 9 || st.game === 10) return resolveRotation(st, shot);
     const me = team(st.turn), other = 1 - me;
