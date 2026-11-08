@@ -58,9 +58,13 @@
   const canControl = () => screen === 'game' && phase === 'aim' && st && st.winner === null && (mode === 'local' || st.turn === me);
   const cue = () => Rules.ball(st, 0);
 
-  function startGame(seed, first, np) {
-    st = Rules.newGame(seed, first, np);
+  let gameType = 8;           // juego elegido en el menú: 8, 9 o 10
+  const GAMES = [8, 9, 10, 'orden'];
+  const gameName = g => g === 'orden' ? 'POOL 61' : 'BOLA ' + g;
+  function startGame(seed, first, np, game) {
+    st = Rules.newGame(seed, first, np, game || gameType);
     phase = 'aim'; shot = null; pendingSync = null; pull = 0; aim = { x: 0, y: -1 }; remoteAim = null;
+    boardT = 0; boardNew = []; seenPotted = 0; prevPotted = [];
     screen = 'game';
   }
 
@@ -99,8 +103,19 @@
     afterResolve();
   }
 
+  // Marcador de bolas metidas: aparece cuando entra una bola (o al tocar la tiza)
+  let boardT = 0, boardNew = [], seenPotted = 0, prevPotted = [];
+  const pottedCount = () => st && st.potted ? st.potted[0].length + st.potted[1].length : 0;
+
   function afterResolve() {
     if (st.msg) { toast = st.msg; toastT = 150; }
+    const n = pottedCount();
+    if (n > seenPotted) {
+      const all = st.potted[0].concat(st.potted[1]);
+      boardNew = all.filter(b => !prevPotted.includes(b));
+      boardT = 240;
+    }
+    seenPotted = n; prevPotted = st.potted ? st.potted[0].concat(st.potted[1]) : [];
     if (st.winner === null) aim = defaultAim();
   }
 
@@ -121,7 +136,7 @@
     },
     open: () => { lobby.text = 'CONECTADO'; },
     data: d => {
-      if (d.t === 'start') { if (d.me !== undefined) me = d.me; startGame(d.seed, d.first, d.np); }
+      if (d.t === 'start') { if (d.me !== undefined) me = d.me; startGame(d.seed, d.first, d.np, d.game); }
       else if (d.t === 'bye') netHandlers.close();
       else if (d.t === 'shot') { iShot = false; applyShot(d); }
       else if (d.t === 'sync') { if (phase === 'moving') pendingSync = d.st; else applySync(d.st); }
@@ -142,9 +157,9 @@
     const np = Net.count();
     if (np !== 2 && np !== 4) return;
     const seed = (Math.random() * 1e9) | 0;
-    Net.sendEach(i => ({ t: 'start', seed, first: 0, np, me: i + 1 }));
+    Net.sendEach(i => ({ t: 'start', seed, first: 0, np, me: i + 1, game: gameType }));
     me = 0;
-    startGame(seed, 0, np);
+    startGame(seed, 0, np, gameType);
   }
   function joinOnline() {
     const c = (prompt('Código de la sala (4 letras):') || '').trim().toUpperCase();
@@ -166,6 +181,7 @@
   function update() {
     tick++;
     if (toastT > 0) toastT--;
+    if (boardT > 0 && phase !== 'moving') boardT--;
     if (screen === 'game' && phase === 'moving') {
       const r = Physics.step(st.balls, shot);
       for (const e of r.events) sfx(e.type, e.speed || 1);
@@ -213,6 +229,8 @@
     if (IMG.logo) ctx.drawImage(IMG.logo, 20, 16);
     txt('POOL ZURICH', 180, 72, '#ffe9a8', 'center', 16);
     if (screen === 'menu') {
+      button('< ' + gameName(gameType) + ' >', 76, 280, () => { gameType = GAMES[(GAMES.indexOf(gameType) + 1) % GAMES.length]; });
+      txt(gameType === 8 ? 'LISAS CONTRA RAYADAS' : gameType === 'orden' ? 'SUMA PUNTOS, GANA QUIEN LLEGA A 61' : 'TOCA SIEMPRE LA MAS BAJA', 180, 342, '#ffe9a8', 'center');
       button('2 JUGADORES', 76, 356, () => { mode = 'local'; startGame((Math.random() * 1e9) | 0, 0, 2); });
       button('4 JUGADORES', 76, 422, () => { mode = 'local'; startGame((Math.random() * 1e9) | 0, 0, 4); });
       button('CREAR SALA', 76, 488, hostOnline);
@@ -243,7 +261,7 @@
     if (IMG.mesa) ctx.drawImage(IMG.mesa, TX, TY);
 
     // Triángulo antes del saque
-    if (st.isBreak && phase === 'aim' && IMG.tri) {
+    if ((st.game === 8 || st.game === 'orden') && st.isBreak && phase === 'aim' && IMG.tri) {
       ctx.save(); ctx.translate(TX + 144, TY + Table.FOOT.y - 17); ctx.scale(1, -1);
       ctx.drawImage(IMG.tri, -33, -28); ctx.restore();
     }
@@ -317,6 +335,19 @@
       }
     }
 
+    // Bola 9 / bola 10 / en orden: bola objetivo y bolas que quedan
+    if (st.game !== 8) {
+      const target = Rules.lowest(st);
+      const last = st.game === 'orden' ? 15 : st.game;
+      if (IMG.bolasG && target < 99) ctx.drawImage(IMG.bolasG, target * 32, 0, 32, 32, 164, 26, 32, 32);
+      for (let n = 1; n <= last; n++) drawBall(n, 180 + (n - (last + 1) / 2) * 11, 68, Rules.ball(st, n).on ? 1 : 0.25);
+    }
+    if (st.game === 'orden') {
+      for (let t = 0; t < 2; t++) {
+        const x = st.np === 2 ? (t === 0 ? 76 : 284) : (t === 0 ? 82 : 278);
+        txt(st.points[t] + ' PTS', x, st.np === 2 ? 26 : 22, '#9fd', t === 0 ? 'left' : 'right');
+      }
+    }
 
     // Botones laterales
     if (IMG.casa) ctx.drawImage(IMG.casa, 2, 92);
@@ -340,6 +371,7 @@
     if (st.winner !== null) line1 = '';
     else if (mode === 'online') line1 = st.turn === me ? 'TU TURNO' : 'TURNO: ' + NAMES[st.turn];
     else line1 = 'TURNO: ' + NAMES[st.turn];
+    if (st.winner === null && st.game !== 8) line1 = gameName(st.game) + ' - ' + line1;
     if (phase === 'wait') line2 = 'SINCRONIZANDO...';
     else if (toastT > 0) line2 = toast;
     else if (canControl() && st.ballInHand) line2 = 'BOLA EN MANO: MUEVE LA BLANCA';
@@ -347,7 +379,42 @@
     txt(line1, 180, 604, '#ffe9a8', 'center');
     txt(line2, 180, 620, toastT > 0 && line2.startsWith('FALTA') ? '#ff6f6f' : '#fff', 'center');
 
+    if (boardT > 0 && st.winner === null) drawBoard();
     if (st.winner !== null) drawGameOver();
+  }
+
+  // Repisa de madera (pixel art) donde se apoyan las bolas metidas
+  function drawShelf(x, y, w) {
+    ctx.fillStyle = '#2a1408'; ctx.fillRect(x - 1, y - 1, w + 2, 13);
+    ctx.fillStyle = '#7a4220'; ctx.fillRect(x, y, w, 11);
+    ctx.fillStyle = '#a35d2c'; ctx.fillRect(x, y, w, 2);
+    ctx.fillStyle = '#4a240e'; ctx.fillRect(x, y + 4, w, 1); ctx.fillRect(x, y + 9, w, 2);
+    ctx.fillStyle = '#5c2f14';
+    for (let i = x + 7; i < x + w; i += 23) ctx.fillRect(i, y + 6, 6, 1);
+    ctx.fillStyle = '#c9a24a'; ctx.fillRect(x, y - 2, 4, 15); ctx.fillRect(x + w - 4, y - 2, 4, 15);
+    ctx.fillStyle = '#f0d27a'; ctx.fillRect(x + 1, y - 1, 1, 13); ctx.fillRect(x + w - 3, y - 1, 1, 13);
+  }
+
+  function drawBoard() {
+    const y0 = 214, h = 200;
+    ctx.fillStyle = 'rgba(10,5,2,0.82)'; ctx.fillRect(8, y0, W - 16, h);
+    ctx.strokeStyle = (tick >> 4) % 2 ? '#ff4fb0' : '#3ff0d8'; ctx.lineWidth = 2;
+    ctx.strokeRect(9, y0 + 1, W - 18, h - 2); ctx.lineWidth = 1;
+    txt('MARCADOR', 180, y0 + 12, '#ffe9a8', 'center', 16);
+    for (let t = 0; t < 2; t++) {
+      const ry = y0 + 52 + t * 72;
+      const label = st.np === 4 ? 'EQUIPO ' + (t === 0 ? 'A' : 'B') + ': ' + NAMES[t] + ' Y ' + NAMES[t + 2] : NAMES[t];
+      const pts = st.game === 'orden' ? '  ' + st.points[t] + ' PTS' : '';
+      txt(label + pts, 22, ry - 8, Rules.team(st.turn) === t ? '#ffe9a8' : '#ddd');
+      const list = (st.potted && st.potted[t]) || [];
+      drawShelf(18, ry + 26, W - 36);
+      list.forEach((n, k) => {
+        if (boardNew.includes(n) && (tick >> 3) % 2) return;     // las recién metidas parpadean
+        ctx.drawImage(IMG.bolas, n * 10, 0, 10, 10, 22 + k * 21, ry + 6, 20, 20);
+      });
+      if (!list.length) txt('SIN BOLAS', 180, ry + 12, '#777', 'center');
+    }
+    txt('TOCA PARA CERRAR', 180, y0 + h - 16, '#999', 'center');
   }
 
   function drawGameOver() {
@@ -362,8 +429,8 @@
     txt(st.msg, 180, py + 128, '#cfe', 'center');
     button('REVANCHA', 76, 370, () => {
       const seed = (Math.random() * 1e9) | 0, first = 1 - st.winner;
-      if (mode === 'online') Net.send({ t: 'start', seed, first, np: st.np });
-      startGame(seed, first, st.np);
+      if (mode === 'online') Net.send({ t: 'start', seed, first, np: st.np, game: st.game });
+      startGame(seed, first, st.np, st.game);
     }, mode === 'online' && me !== 0);
     button('MENU', 76, 440, toMenu);
   }
@@ -398,6 +465,8 @@
     if (screen !== 'game' || !st || st.winner !== null) return;
     if (p.x < 36 && p.y >= 92 && p.y < 124) { if (confirm('¿Salir al menú?')) toMenu(); return; }
     if (p.x < 36 && p.y >= 128 && p.y < 160) { muted = !muted; return; }
+    if (p.x < 36 && p.y >= 164 && p.y < 200) { boardNew = []; boardT = boardT > 0 ? 0 : 200; return; }
+    if (boardT > 0) { boardT = 0; return; }
     if (!canControl()) return;
     const c = cue();
     if (p.x >= 322 && p.y > 250 && p.y < 450) { drag = { mode: 'power', y0: p.y }; return; }
