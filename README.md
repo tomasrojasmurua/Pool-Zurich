@@ -13,8 +13,9 @@ Pool de bar en pixel art para jugar desde el celular.
 
 ## Modos
 
-- **2 jugadores:** los dos en el mismo celular, pasándolo.
-- **Crear sala / Unirse:** online con un amigo. Uno crea la sala y le pasa el código de 4 letras al otro.
+- **2 jugadores:** uno contra uno en el mismo celular, pasándolo.
+- **4 jugadores:** dos contra dos en el mismo celular. Los turnos van alternando entre equipos (A1, B1, A2, B2) y cada equipo juega con lisas o rayadas.
+- **Crear sala / Unirse:** online, de 2 o 4 jugadores. Uno crea la sala y comparte el código de 4 letras; cuando están todos, el que creó la sala aprieta Empezar.
 
 ## Instalar en el celular
 

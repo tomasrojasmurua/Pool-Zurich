@@ -27,9 +27,11 @@ const Rules = (() => {
     return balls;
   }
 
-  function newGame(seed, firstTurn) {
+  // np = 2 (uno contra uno) o 4 (dos contra dos). Equipo de cada jugador = índice % 2.
+  function newGame(seed, firstTurn, np) {
     return {
       balls: rack(seed),
+      np: np === 4 ? 4 : 2,
       turn: firstTurn || 0,
       groups: [null, null],
       ballInHand: true,
@@ -43,9 +45,10 @@ const Rules = (() => {
 
   const ball = (st, n) => st.balls.find(b => b.n === n);
   const remaining = (st, g) => groupBalls(g).filter(n => ball(st, n).on).length;
+  const team = i => i % 2;
 
   function startShot(st) {
-    const g = st.groups[st.turn];
+    const g = st.groups[team(st.turn)];
     return { firstHit: null, pocketed: [], clearedBefore: g ? remaining(st, g) === 0 : false };
   }
 
@@ -79,7 +82,8 @@ const Rules = (() => {
 
   // Se llama cuando todas las bolas se detienen
   function resolve(st, shot) {
-    const me = st.turn, other = 1 - me;
+    const me = team(st.turn), other = 1 - me;
+    const next = (st.turn + 1) % st.np;
     const cueIn = shot.pocketed.includes(0);
     const eightIn = shot.pocketed.includes(8);
     const objects = shot.pocketed.filter(n => n !== 0 && n !== 8);
@@ -116,17 +120,17 @@ const Rules = (() => {
     if (cueIn) placeCueDefault(st);
 
     if (foul) {
-      st.turn = other; st.ballInHand = true;
+      st.turn = next; st.ballInHand = true;
       st.msg = 'FALTA: ' + why;
     } else if (scored) {
       st.ballInHand = false;
       st.msg = 'SIGUE JUGANDO';
     } else {
-      st.turn = other; st.ballInHand = false;
+      st.turn = next; st.ballInHand = false;
       st.msg = '';
     }
     return st;
   }
 
-  return { newGame, startShot, resolve, canPlaceCue, groupOf, groupBalls, remaining, ball };
+  return { newGame, team, startShot, resolve, canPlaceCue, groupOf, groupBalls, remaining, ball };
 })();
