@@ -11,6 +11,7 @@ Pool de bar en pixel art para jugar desde el celular.
 - **Apuntar:** toca o arrastra el dedo sobre la mesa hacia donde quieres tirar.
 - **Tirar:** arrastra hacia abajo la barra de potencia de la derecha y suelta.
 - **Marcador:** cada vez que entra una bola aparece el marcador con las bolas que metió cada jugador o equipo, sobre sus repisas. También se abre tocando la tiza (a la izquierda de la mesa).
+- **Rebote:** al apuntar hacia una banda, una línea turquesa muestra hacia dónde rebotaría la blanca.
 - **Bola en mano:** después de una falta, arrastra la bola blanca a donde quieras.
 - **Reglas:** bola 8. El primero en meter una bola elige lisas o rayadas. Gana quien mete la 8 después de terminar su grupo.
 
@@ -22,6 +23,7 @@ Se elige en el menú tocando el botón de juego (`< BOLA 8 >`).
 - **Bola 9:** bolas 1 a 9 en rombo. Siempre hay que tocar primero la bola más baja de la mesa. Gana quien mete la 9 en un tiro válido, aunque sea de rebote o combinación.
 - **Bola 10:** igual que la bola 9, pero con 10 bolas en triángulo. Gana quien mete la 10.
 - **Pool 61** (rotación o Chicago): 15 bolas en triángulo, con la 1 en el vértice, la 2 y la 3 en las esquinas de atrás y la 15 al centro. Hay que tocar primero la bola más baja y todas las bolas que entran en un tiro válido suman su número en puntos. Si hay falta, pasa el turno, el rival juega con bola en mano detrás de la línea de salida y las bolas metidas vuelven a la mesa. Gana el primero (o la pareja) que llega a 61 de los 120 puntos.
+- **61 Casa** (reglas de la casa): igual que Pool 61, pero las bolas 1 a 14 parten sobre los diamantes de las bandas y la 15 al centro.
 
 ## Modos
 

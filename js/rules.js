@@ -12,10 +12,31 @@ const Rules = (() => {
     10: [[1], [2, 3], [4, 10, 5], [6, 7, 8, 9]],
   };
 
+  // Pool 61 con reglas de la casa: las bolas 1 a 14 parten sobre los 14 diamantes de las bandas
+  // (en orden al azar) y la 15 al centro de la mesa. Todo lo demás es igual a Pool 61.
+  const DIAMONDS = (() => {
+    const R = Table.R, L = Table.L + R + 0.5, Rt = Table.Rt - R - 0.5, T = Table.T + R + 0.5, B = Table.B - R - 0.5;
+    const pts = [];
+    for (const y of [95, 161, 333, 399]) pts.push([L, y], [Rt, y]);
+    for (const x of [84, 144, 204]) pts.push([x, T], [x, B]);
+    return pts;
+  })();
+
+  function rackDiamonds(rnd) {
+    const nums = [];
+    for (let n = 1; n <= 14; n++) nums.push(n);
+    for (let i = nums.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [nums[i], nums[j]] = [nums[j], nums[i]]; }
+    const balls = [{ n: 0, x: 144, y: Table.HEAD_Y, vx: 0, vy: 0, on: true }];
+    DIAMONDS.forEach(([x, y], i) => balls.push({ n: nums[i], x, y, vx: 0, vy: 0, on: true }));
+    balls.push({ n: 15, x: 144, y: Table.MIDY, vx: 0, vy: 0, on: true });
+    return balls;
+  }
+
   function rack(seed, game) {
     // Pequeño desorden reproducible para que cada saque sea distinto
     let s = seed >>> 0 || 1;
     const rnd = () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
+    if (game === 'casa') return rackDiamonds(rnd);
     if (game === 'orden') {
       // Pool 61: la 1 en el vértice, la 2 y la 3 en las esquinas de atrás, la 15 al centro, el resto al azar
       const rest = [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14];
@@ -41,8 +62,8 @@ const Rules = (() => {
   // np = 2 (uno contra uno) o 4 (dos contra dos). Equipo de cada jugador = índice % 2.
   // game = 8, 9 o 10 (bola 8, bola 9, bola 10)
   function newGame(seed, firstTurn, np, game) {
-    game = game === 9 || game === 10 || game === 'orden' ? game : 8;
-    const orden = game === 'orden';
+    game = game === 9 || game === 10 || game === 'orden' || game === 'casa' ? game : 8;
+    const orden = game === 'orden' || game === 'casa';
     return {
       game,
       points: [0, 0],
@@ -166,7 +187,7 @@ const Rules = (() => {
   }
 
   function resolveGame(st, shot) {
-    if (st.game === 'orden') return resolveOrden(st, shot);
+    if (st.game === 'orden' || st.game === 'casa') return resolveOrden(st, shot);
     if (st.game === 9 || st.game === 10) return resolveRotation(st, shot);
     const me = team(st.turn), other = 1 - me;
     const next = (st.turn + 1) % st.np;

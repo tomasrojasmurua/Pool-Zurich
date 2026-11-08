@@ -59,8 +59,9 @@
   const cue = () => Rules.ball(st, 0);
 
   let gameType = 8;           // juego elegido en el menú: 8, 9 o 10
-  const GAMES = [8, 9, 10, 'orden'];
-  const gameName = g => g === 'orden' ? 'POOL 61' : 'BOLA ' + g;
+  const GAMES = [8, 9, 10, 'orden', 'casa'];
+  const is61 = g => g === 'orden' || g === 'casa';
+  const gameName = g => g === 'orden' ? 'POOL 61' : g === 'casa' ? '61 CASA' : 'BOLA ' + g;
   function startGame(seed, first, np, game) {
     st = Rules.newGame(seed, first, np, game || gameType);
     phase = 'aim'; shot = null; pendingSync = null; pull = 0; aim = { x: 0, y: -1 }; remoteAim = null;
@@ -230,7 +231,7 @@
     txt('POOL ZURICH', 180, 72, '#ffe9a8', 'center', 16);
     if (screen === 'menu') {
       button('< ' + gameName(gameType) + ' >', 76, 280, () => { gameType = GAMES[(GAMES.indexOf(gameType) + 1) % GAMES.length]; });
-      txt(gameType === 8 ? 'LISAS CONTRA RAYADAS' : gameType === 'orden' ? 'SUMA PUNTOS, GANA QUIEN LLEGA A 61' : 'TOCA SIEMPRE LA MAS BAJA', 180, 342, '#ffe9a8', 'center');
+      txt(gameType === 8 ? 'LISAS CONTRA RAYADAS' : gameType === 'orden' ? 'SUMA PUNTOS, GANA QUIEN LLEGA A 61' : gameType === 'casa' ? 'POOL 61, BOLAS EN LOS DIAMANTES' : 'TOCA SIEMPRE LA MAS BAJA', 180, 342, '#ffe9a8', 'center');
       button('2 JUGADORES', 76, 356, () => { mode = 'local'; startGame((Math.random() * 1e9) | 0, 0, 2); });
       button('4 JUGADORES', 76, 422, () => { mode = 'local'; startGame((Math.random() * 1e9) | 0, 0, 4); });
       button('CREAR SALA', 76, 488, hostOnline);
@@ -284,6 +285,7 @@
       for (let d = 7; d < hit.t; d += 4) ctx.fillRect(Math.round(TX + c.x + a.x * d), Math.round(TY + c.y + a.y * d), 1, 1);
       ctx.strokeStyle = 'rgba(255,255,255,0.8)';
       ctx.beginPath(); ctx.arc(Math.round(TX + hit.x) + 0.5, Math.round(TY + hit.y) + 0.5, 4.5, 0, Math.PI * 2); ctx.stroke();
+      if (!hit.ball) drawBank(hit, a);
       if (hit.ball) {
         const nx = hit.ball.x - hit.x, ny = hit.ball.y - hit.y, nd = Math.hypot(nx, ny) || 1;
         ctx.fillStyle = 'rgba(255,240,120,0.9)';
@@ -298,6 +300,24 @@
     }
 
     drawHud();
+  }
+
+  // Rebote en la banda: muestra hacia dónde seguiría la blanca después de pegar en la orilla
+  function drawBank(hit, a) {
+    const R = Table.R;
+    for (const p of Table.pockets) if (Math.hypot(hit.x - p.x, hit.y - p.y) < p.r + R + 2) return;   // va a la tronera
+    let dx = a.x, dy = a.y;
+    if (Math.abs(hit.x - (Table.L + R)) < 0.5 || Math.abs(hit.x - (Table.Rt - R)) < 0.5) dx = -dx;
+    if (Math.abs(hit.y - (Table.T + R)) < 0.5 || Math.abs(hit.y - (Table.B - R)) < 0.5) dy = -dy;
+    const from = { x: hit.x, y: hit.y };
+    const h2 = Physics.castRay(st.balls, from, dx, dy);
+    const len = Math.min(h2.t, 160);
+    ctx.fillStyle = 'rgba(120,255,220,0.75)';
+    for (let d = 4; d < len; d += 4) ctx.fillRect(Math.round(TX + from.x + dx * d), Math.round(TY + from.y + dy * d), 1, 1);
+    if (h2.t <= 160) {
+      ctx.strokeStyle = 'rgba(120,255,220,0.75)';
+      ctx.beginPath(); ctx.arc(Math.round(TX + h2.x) + 0.5, Math.round(TY + h2.y) + 0.5, 4.5, 0, Math.PI * 2); ctx.stroke();
+    }
   }
 
   function drawHud() {
@@ -338,11 +358,11 @@
     // Bola 9 / bola 10 / en orden: bola objetivo y bolas que quedan
     if (st.game !== 8) {
       const target = Rules.lowest(st);
-      const last = st.game === 'orden' ? 15 : st.game;
+      const last = is61(st.game) ? 15 : st.game;
       if (IMG.bolasG && target < 99) ctx.drawImage(IMG.bolasG, target * 32, 0, 32, 32, 164, 26, 32, 32);
       for (let n = 1; n <= last; n++) drawBall(n, 180 + (n - (last + 1) / 2) * 11, 68, Rules.ball(st, n).on ? 1 : 0.25);
     }
-    if (st.game === 'orden') {
+    if (is61(st.game)) {
       for (let t = 0; t < 2; t++) {
         const x = st.np === 2 ? (t === 0 ? 76 : 284) : (t === 0 ? 82 : 278);
         txt(st.points[t] + ' PTS', x, st.np === 2 ? 26 : 22, '#9fd', t === 0 ? 'left' : 'right');
@@ -404,7 +424,7 @@
     for (let t = 0; t < 2; t++) {
       const ry = y0 + 52 + t * 72;
       const label = st.np === 4 ? 'EQUIPO ' + (t === 0 ? 'A' : 'B') + ': ' + NAMES[t] + ' Y ' + NAMES[t + 2] : NAMES[t];
-      const pts = st.game === 'orden' ? '  ' + st.points[t] + ' PTS' : '';
+ const pts = is61(st.game) ? '  ' + st.points[t] + ' PTS' : '';
       txt(label + pts, 22, ry - 8, Rules.team(st.turn) === t ? '#ffe9a8' : '#ddd');
       const list = (st.potted && st.potted[t]) || [];
       drawShelf(18, ry + 26, W - 36);
