@@ -12,7 +12,7 @@ const Rules = (() => {
     10: [[1], [2, 3], [4, 10, 5], [6, 7, 8, 9]],
   };
 
-  // "En orden": las bolas 1 a 14 van sobre los diamantes de las bandas y la 15 al centro
+  // Pool 61: las bolas 1 a 14 van sobre los diamantes de las bandas y la 15 al centro
   const DIAMONDS = (() => {
     const R = Table.R, L = Table.L + R + 0.5, Rt = Table.Rt - R - 0.5, T = Table.T + R + 0.5, B = Table.B - R - 0.5;
     const pts = [];
@@ -143,7 +143,7 @@ const Rules = (() => {
     b.x = x; b.y = y; b.vx = 0; b.vy = 0; b.on = true;
   }
 
-  // "En orden": hay que tocar primero la más baja; solo cuentan las bolas que entran en orden.
+  // Pool 61: hay que tocar primero la más baja; solo cuentan las bolas que entran en orden.
   // Cada bola vale su número en puntos. Gana quien llega a 61 o tiene más al final.
   function resolveOrden(st, shot) {
     const me = team(st.turn), next = (st.turn + 1) % st.np;

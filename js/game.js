@@ -60,7 +60,7 @@
 
   let gameType = 8;           // juego elegido en el menú: 8, 9 o 10
   const GAMES = [8, 9, 10, 'orden'];
-  const gameName = g => g === 'orden' ? 'EN ORDEN' : 'BOLA ' + g;
+  const gameName = g => g === 'orden' ? 'POOL 61' : 'BOLA ' + g;
   function startGame(seed, first, np, game) {
     st = Rules.newGame(seed, first, np, game || gameType);
     phase = 'aim'; shot = null; pendingSync = null; pull = 0; aim = { x: 0, y: -1 }; remoteAim = null;
